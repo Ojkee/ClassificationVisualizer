@@ -1,7 +1,7 @@
 package window
 
 import (
-	"math"
+	"fmt"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 
@@ -19,6 +19,7 @@ type Window struct {
 	backgroundColor rl.Color
 
 	points      []dataset.Point
+	pointIdx    int
 	labelColors []rl.Color
 
 	model model_interface.ModelInterface
@@ -41,8 +42,9 @@ func NewWindow(
 		width:           width,
 		backgroundColor: settings.DARK_GREY,
 
-		labelColors: colors,
 		points:      points,
+		pointIdx:    0,
+		labelColors: colors,
 
 		model: model,
 	}
@@ -57,6 +59,7 @@ func (window *Window) MainLoop() {
 	for window.running {
 		window.checkEvent()
 		window.draw()
+		window.trainStep()
 	}
 
 	rl.CloseWindow()
@@ -73,7 +76,7 @@ func (window *Window) draw() {
 	rl.BeginDrawing()
 	rl.ClearBackground(window.backgroundColor)
 
-	// window.drawGuessMesh()
+	window.drawGuessMesh()
 	window.drawTrueLabel()
 
 	rl.EndDrawing()
@@ -84,37 +87,37 @@ func (window *Window) drawTrueLabel() {
 		y := int32(point.GetY() * float64(window.height))
 		x := int32(point.GetX() * float64(window.width))
 		color := window.labelColors[point.GetLabel()]
-		rl.DrawCircle(x, y, 2, color)
+		rl.DrawCircle(x, y, settings.POINTS_D, color)
 	}
 }
 
 func (window *Window) drawGuessMesh() {
-	for i := range window.height + 1 {
-		for j := range window.width + 1 {
+	for i := 0; i <= int(window.height); i += settings.MESH_GAP_Y {
+		for j := 0; j <= int(window.height); j += settings.MESH_GAP_Y {
 			x := float64(j) / float64(window.width)
 			y := float64(i) / float64(window.height)
 			guess := window.model.Forward(x, y)
-			labelIdx, certainty := window.getLabelWithCertainty(guess)
+			labelIdx, certainty := functools.GetLabelWithCertainty(guess)
 			color := window.labelColors[labelIdx]
 			color.A = uint8(certainty * 255)
-			rl.DrawCircle(j, i, 8, color)
+			rl.DrawCircle(int32(j), int32(i), 1, color)
 		}
 	}
 }
 
-func (window *Window) getLabelWithCertainty(guess []float64) (int, float64) {
-	if len(guess) == 1 {
-		binaryClass := math.Round(guess[0])
-		if binaryClass == 0 {
-			return 0, 1 - guess[0]
-		}
-		return 1, guess[0]
+func (window *Window) trainStep() {
+	if window.pointIdx >= len(window.points) {
+		return
 	}
-	currMaxIdx := 0
-	for i := range guess {
-		if guess[i] > guess[currMaxIdx] {
-			currMaxIdx = i
-		}
-	}
-	return currMaxIdx, guess[currMaxIdx]
+	p := window.points[window.pointIdx]
+	x := p.GetX()
+	y := p.GetY()
+	label := p.GetLabel()
+	guess := window.model.Forward(x, y)
+	labelIdx, _ := functools.GetLabelWithCertainty(guess)
+	fmt.Println()
+	fmt.Printf("%s\n", window.model.Info())
+	fmt.Printf("(%f, %f)\n\tlabel: %d\n\tpredi: %d\n\tguess: %f\n", x, y, label, labelIdx, guess[0])
+	window.model.Train(x, y, label)
+	window.pointIdx += 1
 }

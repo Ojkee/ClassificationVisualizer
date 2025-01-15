@@ -45,8 +45,8 @@ func (layer *DenseLayer) InitFilterRandom(minRange, maxRange float64) {
 		randWeights[i] = rand.Float64()*(maxRange-minRange) + minRange
 	}
 	layer.weights = *mat.NewDense(
-		layer.nInputs,
 		layer.nNeurons,
+		layer.nInputs,
 		randWeights,
 	)
 }
